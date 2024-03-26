@@ -2,38 +2,51 @@
 
 void kernel_main()
 {
+    // Read parameters from the kernel arguments
     uint32_t a_addr = get_arg_val<uint32_t>(0);
     uint32_t b_addr = get_arg_val<uint32_t>(1);
     uint32_t n_tiles = get_arg_val<uint32_t>(2);
 
-    // uint32_t tile_size = 32 * 32;
-
+    // The circular buffers to read the tiles into
     constexpr uint32_t cb_in0 = tt::CB::c_in0;
     constexpr uint32_t cb_in1 = tt::CB::c_in1;
 
-    uint32_t tile_size = get_tile_size(cb_in0);
-    const uint32_t tile_size_bytes = 32 * 32 * 2;
+    // Get the tile size used in the circular buffers. We assume the
+    // circular buffers are created with the same tile size as the DRAM
+    // buffers. (Whis is most of the cases)
+    const uint32_t tile_size_bytes = get_tile_size(cb_in0);
 
+    // Create address generators for the input buffers. This is much faster
+    // then doing plain DRAM reads.
     const InterleavedAddrGenFast<true> a = {
-        .bank_base_address = a_addr,
-        .page_size = tile_size_bytes,
-        .data_format = DataFormat::Float16_b,
+        .bank_base_address = a_addr,          // The base address of the buffer
+        .page_size = tile_size_bytes,         // The size of a tile in bytes
+        .data_format = DataFormat::Float16_b, // The data format of the buffer
     };
-
     const InterleavedAddrGenFast<true> b = {
         .bank_base_address = b_addr,
         .page_size = tile_size_bytes,
         .data_format = DataFormat::Float16_b,
     };
 
-    for(uint32_t i = 0; i < n_tiles; i++)
-    {
-        cb_reserve_back(cb_in0, 1);
+    // Now we loop over all the tiles and read them into the circular buffers
+    for(uint32_t i = 0; i < n_tiles; i++) {
+        // First we make sure there is space in the circular buffers
+        cb_reserve_back(cb_in0, 1); // wait until we have 1 free slot. This block if
+                                    // the other kernels cannot consume the tiles fast enough.
+                                    // Deciding how large the buffer should be is a tradeoff.
         uint32_t cb_in0_addr = get_write_ptr(cb_in0);
-        noc_async_read_tile(i, a, cb_in0_addr);
-        noc_async_read_barrier();
-        cb_push_back(cb_in0, 1);
+        // NOTE: Since circular buffers are backed by SRAM, we can actually access them by
+        // casting the address to a pointer. This is not helpful in most cases as the CPU
+        // is quite slow compared to the tensor/simd engines. But useful for debugging.
+        // uint16_t* ptr = (uint16_t*)cb_in0_addr;
+        // DPRINT << "cb_in0_addr: " << ptr << " " << *ptr;
+        noc_async_read_tile(i, a, cb_in0_addr); // read the tile into the circular buffer
+        noc_async_read_barrier(); // wait until the read is done
+        cb_push_back(cb_in0, 1); // mark the tile as ready. From this point forward kernels
+                                 // calling `cb_wait_front` will see this tile
 
+        // DITTO for the second buffer
         cb_reserve_back(cb_in1, 1);
         uint32_t cb_in1_addr = get_write_ptr(cb_in1);
         noc_async_read_tile(i, b, cb_in1_addr);
