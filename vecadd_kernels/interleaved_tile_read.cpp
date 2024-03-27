@@ -51,7 +51,7 @@ void kernel_main()
         // uint16_t* ptr = (uint16_t*)cb_in0_addr;
         // DPRINT << "cb_in0_addr: " << ptr << " " << *ptr;
 
-        noc_async_read_barrier();
+        noc_async_read_barrier(); // Wait until tile reads are done
         cb_push_back(cb_in0, 1);
         cb_push_back(cb_in1, 1); // mark the tiles as ready. From this point forward kernels
                                  // calling `cb_wait_front` will see this tile
