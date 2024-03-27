@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <random>
+#include <string_view>
 #include <vector>
 
 using namespace tt::tt_metal;
@@ -22,7 +23,7 @@ std::shared_ptr<Buffer> MakeBuffer(Device *device, uint32_t size, uint32_t page_
 }
 
 // Allocate a buffer on DRAM or SRAM. Assuming the buffer holds BFP16 data.
-// A tile on TensorTile is 32x32 elements, given us using BFP16, we need 2 bytes per element.
+// A tile on Tenstorrent is 32x32 elements, given us using BFP16, we need 2 bytes per element.
 // Making the tile size 32x32x2 = 2048 bytes.
 // @param device: The device to allocate the buffer on.
 // @param n_tiles: The number of tiles to allocate.
@@ -30,6 +31,7 @@ std::shared_ptr<Buffer> MakeBuffer(Device *device, uint32_t size, uint32_t page_
 std::shared_ptr<Buffer> MakeBufferBFP16(Device *device, uint32_t n_tiles, bool sram)
 {
     constexpr uint32_t tile_size = 2 * (32 * 32);
+    // For simplicity, all DRAM buffers have page size = tile size.
     const uint32_t page_tiles = sram ? n_tiles : 1;
     return MakeBuffer(device, tile_size * n_tiles, page_tiles * tile_size, sram);
 }
@@ -40,7 +42,7 @@ CBHandle MakeCircularBuffer(Program& program, const CoreCoord& core, tt::CB cb, 
         size,
         {{
             cb,
-            tt::DataFormat::Float16_b
+            format
     }})
     .set_page_size(cb, page_size);
     return CreateCircularBuffer(program, core, cb_src0_config);
@@ -59,10 +61,48 @@ CBHandle MakeCircularBufferBFP16(Program& program, const CoreCoord& core, tt::CB
     return MakeCircularBuffer(program, core, cb, n_tiles * tile_size, tile_size, tt::DataFormat::Float16_b);
 }
 
+std::string next_arg(int& i, int argc, char **argv)
+{
+    if(i + 1 >= argc) {
+        std::cerr << "Expected argument after " << argv[i] << std::endl;
+        exit(1);
+    }
+    return argv[++i];
+}
+
+void help(std::string_view program_name)
+{
+    std::cout << "Usage: " << program_name << " [options]\n";
+    std::cout << "Options:\n";
+    std::cout << "  --device, -d <device_id>  Specify the device to run the program on. Default is 0.\n";
+    std::cout << "  --seed, -s <seed>         Specify the seed for the random number generator. Default is random.\n";
+    exit(0);
+}
 
 int main(int argc, char **argv)
 {
+    int seed = std::random_device{}();
     int device_id = 0;
+
+    // Quick and dirty argument parsing.
+    for(int i = 1; i < argc; i++) {
+        std::string_view arg = argv[i];
+        if(arg == "--device" || arg == "-d") {
+            device_id = std::stoi(next_arg(i, argc, argv));
+        }
+        else if(arg == "--seed" || arg == "-s") {
+            seed = std::stoi(next_arg(i, argc, argv));
+        }
+        else if(arg == "--help" || arg == "-h") {
+            help(argv[0]);
+            return 0;
+        }
+        else {
+            std::cout << "Unknown argument: " << arg << std::endl;
+            help(argv[0]);
+        }
+    }
+
     Device *device = CreateDevice(device_id);
 
     Program program = CreateProgram();
@@ -77,9 +117,9 @@ int main(int argc, char **argv)
     auto b = MakeBufferBFP16(device, n_tiles, false);
     auto c = MakeBufferBFP16(device, n_tiles, false);
 
-    std::random_device rd;
-    std::vector<uint32_t> a_data = create_random_vector_of_bfloat16(tile_size * n_tiles * 2, 10, rd());
-    std::vector<uint32_t> b_data = create_random_vector_of_bfloat16(tile_size * n_tiles * 2, 10, rd());
+    std::mt19937 rng(seed);
+    std::vector<uint32_t> a_data = create_random_vector_of_bfloat16(tile_size * n_tiles * 2, 10, rng());
+    std::vector<uint32_t> b_data = create_random_vector_of_bfloat16(tile_size * n_tiles * 2, 10, rng());
 
     const uint32_t tiles_per_cb = 4;
     // Create 3 circular buffers. These will be used by the data movement kernels to stream data into the compute cores and for the compute cores to stream data out.
