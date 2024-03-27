@@ -9,7 +9,7 @@ if("$ENV{TT_METAL_HOME}" STREQUAL "")
     message(FATAL_ERROR "TT_METAL_HOME is not set")
 endif()
 if("$ENV{ARCH_NAME}" STREQUAL "")
-    message(FATAL_ERROR "TT_METAL_ARCH is not set")
+    message(FATAL_ERROR "ARCH_NAME is not set")
 endif()
 
 message($ENV{TT_METAL_HOME}/tt_metal/third_party/src/firmware/riscv/$ENV{ARCH_NAME})
