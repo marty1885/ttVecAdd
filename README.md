@@ -16,7 +16,7 @@ export TT_METAL_ENV=dev
 Then build the project
 
 ```bash
-cd ttPEAK
+cd ttVecAdd
 # HACK: Metalium only searches kernels under it's directories
 ln -s vecadd_kernels $TT_METAL_HOME/vecadd_kernels
 

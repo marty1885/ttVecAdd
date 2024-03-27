@@ -1,4 +1,3 @@
-
 #include "common/core_coord.h"
 #include "tt_metal/host_api.hpp"
 #include "common/bfloat16.hpp"
