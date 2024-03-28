@@ -138,6 +138,8 @@ int main(int argc, char **argv)
     // The vector add example consists of 3 kernels. `interleaved_tile_read` reads tiles from the input buffers A and B
     // into 2 circular buffers. `add` reads tiles from the circular buffers, adds them together, and dumps the result into
     // a third circular buffer. `tile_write` reads tiles from the third circular buffer and writes them to the output buffer C.
+    //
+    // This also registers the kernels with the program. A program is a collection of kernels on different cores.
     auto reader = CreateKernel(
         program,
         "vecadd_kernels/interleaved_tile_read.cpp",
@@ -161,8 +163,7 @@ int main(int argc, char **argv)
         }
     );
 
-    // Set the runtime arguments for the kernels. This also registers
-    // the kernels with the program.
+    // Set the runtime arguments for the kernels. 
     SetRuntimeArgs(program, reader, core, {
         a->address(),
         b->address(),
