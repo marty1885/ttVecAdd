@@ -1,11 +1,11 @@
 # ttVecAdd
 
-A simple vector-addition on Tenstorrent devices using tt-Metalium.
+A simple vector-addition demo on Tenstorrent devices using tt-Metalium.
 
-## How to use
+This demo works on grayskull e150 and e75.
 
-
-Before building this project. Setup the enviroment variables that Metalium needs
+## Setup
+Before building this project. Setup the enviroment variables in `setup_env.sh` that Metalium needs, e.g.:
 
 ```bash
 export ARCH_NAME=grayskull                                                                   
@@ -13,21 +13,16 @@ export TT_METAL_HOME=/path/to/your/root/of/tt-metal/
 export TT_METAL_ENV=dev
 ```
 
-Then build the project
+`ln -s $(pwd)/vecadd_kernels $TT_METAL_HOME/ttvecadd_kernels` in `setup_env.sh` will also create a link in the root of TT_METAL_HOME (this is needed at this time because tt-metal looks in its root dir for kernels).
 
+## Build
 ```bash
-cd ttVecAdd
-# HACK: Metalium only searches kernels under it's directories
-ln -s vecadd_kernels $TT_METAL_HOME/vecadd_kernels
-
-mkdir build
 cd build
 cmake ..
 make
 ```
 
-To run
-
+## Run
 ```
 ➜ ./ttvecadd 
                   Metal | INFO     | Initializing device 0
